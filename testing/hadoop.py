@@ -39,11 +39,9 @@ class HadoopServer(object):
         'base_dir': '/tmp', 'hadoop_unit_path': '/usr/local/hadoop-unit',
         'enabled_servers': ['hdfs'],
         'hadoop_unit_default_props': {'hdfs.test.file': '/tmp/testing', 'maven.local.repo': '/tmp/m2',},
+        'boot_timeout': 240,
+        'stop_timeout': 120,
     }
-
-    # this is java, my friends :D
-    DEFAULT_BOOT_TIMEOUT = 180.0
-    DEFAULT_KILL_TIMEOUT = 120.0
 
     def __init__(self, **kwargs):
         self.name = self.__class__.__name__
@@ -128,7 +126,7 @@ class HadoopServer(object):
 
             killed_at = datetime.now()
             while self.is_server_available():
-                if (datetime.now() - killed_at).seconds > self.DEFAULT_KILL_TIMEOUT:
+                if (datetime.now() - killed_at).seconds > self.settings.get('stop_timeout', 120):
                     self.child_process.kill()
                     stop_child_process.kill()
                     raise RuntimeError("*** failed to shutdown process (timeout) ***\n" + self.read_bootlog())
@@ -152,7 +150,7 @@ class HadoopServer(object):
         pass
 
     def wait_booting(self):
-        boot_timeout = self.settings.get('boot_timeout', self.DEFAULT_BOOT_TIMEOUT)
+        boot_timeout = self.settings.get('boot_timeout')
         exec_at = datetime.now()
         while True:
             if self.child_process.poll() is not None:
