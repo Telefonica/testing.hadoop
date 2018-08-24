@@ -24,6 +24,8 @@ import subprocess
 import tempfile
 from copy import deepcopy
 from datetime import datetime
+from six.moves import urllib
+import json
 
 from .helpers import get_path_of, modify_conf_properties
 
@@ -178,17 +180,21 @@ class HadoopServer(object):
         return [self.hadoop_unit_standalone, param]
 
     def _is_hdfs_ready(self):
-        from six.moves import urllib
-
         webhdfs_port = self.hadoop_unit_props['hdfs.namenode.http.port']
-        url = 'http://localhost:{}/jmx?qry=Hadoop:service=NameNode,name=NameNodeStatus'.format(webhdfs_port)
+        url = 'http://localhost:{}/jmx?qry=Hadoop:service=NameNode,name=NameNodeInfo'.format(webhdfs_port)
+        server_active = False
 
         try:
             result = urllib.request.urlopen(url)
             content = result.read()
-            server_active = content and b'"State" : "active"' in content
+            result = json.loads(content)
+            if result['beans']:
+                live_nodes = json.loads(result['beans'][0].get('LiveNodes', '{}'))
+                server_active = len(live_nodes) > 0
 
         except urllib.error.URLError as e:
+            server_active = False
+        except ValueError:
             server_active = False
 
         return server_active
