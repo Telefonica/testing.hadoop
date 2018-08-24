@@ -33,16 +33,14 @@ setup(
     author='Jordi Sesmero',
     url='https://github.com/jsmolina/testing.hadoop',
     license='Apache License 2.0',
-    packages=find_packages('src'),
-    package_dir={'': 'testing'},
-    package_data={'': ['buildout.cfg']},
+    packages=find_packages(),
     include_package_data=True,
     install_requires=install_requires,
+    tests_require=install_requires + ['nose'],
+    test_suite="nose.collector",
     extras_require=dict(
         testing=[
             'nose',
         ],
     ),
-    test_suite='nose.collector',
-    namespace_packages=['testing'],
 )

@@ -1,11 +1,5 @@
-import os
-import signal
-import tempfile
 import unittest
 import testing.hadoop
-from time import sleep
-from shutil import rmtree
-from contextlib import closing
 
 
 class TestPostgresql(unittest.TestCase):

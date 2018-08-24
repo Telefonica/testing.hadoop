@@ -53,10 +53,10 @@ def get_path_of(name):
 
 
 def modify_conf_properties(filename, modified_properties):
-    with open(filename, 'r', encoding='utf-8') as fp:
+    with open(filename, 'r') as fp:
         properties = javaproperties.load(fp)
 
-    with open(filename, 'w', encoding='utf-8') as fp:
+    with open(filename, 'w') as fp:
         properties.update(modified_properties)
         javaproperties.dump(properties, fp)
     return properties
