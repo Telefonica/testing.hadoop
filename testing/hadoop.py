@@ -52,6 +52,7 @@ class HadoopServer(object):
         self._use_tmpdir = False
         self.hadoop_unit_props = {}
         self.hadoop_props = {}
+        self.logger = None
 
         if os.name == 'nt':
             self.terminate_signal = signal.CTRL_BREAK_EVENT
@@ -81,13 +82,13 @@ class HadoopServer(object):
             return  # already started
         self.prestart()
 
-        logger = open(os.path.join(self.base_dir, '%s.log' % self.name), 'wt')
+        self.logger = open(os.path.join(self.base_dir, '%s.log' % self.name), 'wt')
         try:
             command = self.get_server_commandline()
             flags = 0
             if os.name == 'nt':
                 flags |= subprocess.CREATE_NEW_PROCESS_GROUP
-            self.child_process = subprocess.Popen(command, stdout=logger, stderr=logger,
+            self.child_process = subprocess.Popen(command, stdout=self.logger, stderr=self.logger,
                                                   creationflags=flags)
         except Exception as exc:
             raise RuntimeError('failed to launch %s: %r' % (self.name, exc))
@@ -100,7 +101,7 @@ class HadoopServer(object):
                 self.stop()
                 raise
         finally:
-            logger.close()
+            self.logger.close()
 
     def stop(self, _signal=signal.SIGTERM):
         try:
@@ -122,10 +123,11 @@ class HadoopServer(object):
             command = self.get_server_commandline('stop')
             stop_child_process = subprocess.Popen(command)
 
-            self.child_process.send_signal(_signal)
+            # block until stopped
+            stop_child_process.communicate()
 
             killed_at = datetime.now()
-            while self.is_server_available():
+            while self._pid_exists():
                 if (datetime.now() - killed_at).seconds > self.settings.get('stop_timeout', 120):
                     self.child_process.kill()
                     stop_child_process.kill()
@@ -153,11 +155,14 @@ class HadoopServer(object):
         boot_timeout = self.settings.get('boot_timeout')
         exec_at = datetime.now()
         while True:
+            self.logger.flush()
+
             if self.child_process.poll() is not None:
                 raise RuntimeError("*** failed to launch %s ***\n" % self.name +
                                    self.read_bootlog())
 
-            if self.has_started():
+            if self.is_server_available():
+                print("Server started...")
                 break
 
             if (datetime.now() - exec_at).seconds > boot_timeout:
@@ -172,22 +177,32 @@ class HadoopServer(object):
     def get_server_commandline(self, param='console'):
         return [self.hadoop_unit_standalone, param]
 
-    def has_started(self):
-        with open(os.path.join(self.base_dir, '%s.log' % self.name), 'r') as f:
-            if 'HdfsBootstrap is started' in f.read():
-                return True
-        return False
+    def _is_hdfs_ready(self):
+        from six.moves import urllib
+
+        webhdfs_port = self.hadoop_unit_props['hdfs.namenode.http.port']
+        url = 'http://localhost:{}/webhdfs/v1/tmp'.format(webhdfs_port)
+
+        try:
+            urllib.request.urlopen(url)
+        except urllib.error.HTTPError as http:
+            # if there's an http response, it is up and running
+            return True
+        except urllib.error.URLError as e:
+            return False
 
     def is_server_available(self):
-        available_servers = []
+        CHECKERS = {
+            'hdfs': self._is_hdfs_ready
+        }
 
         enabled_servers = self.settings.get('enabled_servers', [])
         for server in enabled_servers:
-            server_port = int(self._find_port(server))
-            available_servers.append(server_port and self._port_in_use(server_port))
+            availability_checker = CHECKERS.get(server)
+            if not availability_checker():
+                return False
 
-        # all should be true!
-        return len(available_servers) >= len(enabled_servers) and all(available_servers)
+        return True
 
     def _find_port(self, server):
         for key, value in self.hadoop_unit_props.items():
@@ -195,12 +210,15 @@ class HadoopServer(object):
                 return value
         return None
 
+    def _pid_exists(self):
+        return os.path.exists(os.path.join(self.settings['hadoop_unit_path'], 'logs', 'hadoop-unit-standalone.pid'))
+
     def prestart(self):
         """
         checks expected ports are not in use
         :return:
         """
-        if os.path.exists(os.path.join(self.settings['hadoop_unit_path'], 'logs', 'hadoop-unit-standalone.pid')):
+        if self._pid_exists():
             raise Exception("Another server is already running, please kill it and delete hadoop-unit-standalone.pid")
 
         properties_path = os.path.join(self.settings['hadoop_unit_path'], 'conf')
