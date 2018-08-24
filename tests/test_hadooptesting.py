@@ -8,8 +8,8 @@ class TestPostgresql(unittest.TestCase):
         server = testing.hadoop.HadoopServer(hadoop_unit_path='/usr/local/hadoop-unit')
 
         try:
-            self.assertIs(server.is_server_available(), True)
+            self.assertIs(server.are_enabled_servers_started(), True)
             server.stop()
-            self.assertIs(server.is_server_available(), False)
+            self.assertIs(server.are_enabled_servers_started(), False)
         finally:
             server.stop()

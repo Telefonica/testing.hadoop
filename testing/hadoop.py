@@ -161,7 +161,7 @@ class HadoopServer(object):
                 raise RuntimeError("*** failed to launch %s ***\n" % self.name +
                                    self.read_bootlog())
 
-            if self.is_server_available():
+            if self.are_enabled_servers_listening() and self.are_enabled_servers_started():
                 print("Server started...")
                 break
 
@@ -181,19 +181,26 @@ class HadoopServer(object):
         from six.moves import urllib
 
         webhdfs_port = self.hadoop_unit_props['hdfs.namenode.http.port']
-        url = 'http://localhost:{}/webhdfs/v1/tmp'.format(webhdfs_port)
+        url = 'http://localhost:{}/jmx?qry=Hadoop:service=NameNode,name=NameNodeStatus'.format(webhdfs_port)
 
         try:
-            urllib.request.urlopen(url)
-        except urllib.error.HTTPError as http:
-            # if there's an http response, it is up and running
-            return True
-        except urllib.error.URLError as e:
-            return False
+            result = urllib.request.urlopen(url)
+            content = result.read()
+            server_active = content and b'"State" : "active"' in content
 
-    def is_server_available(self):
+        except urllib.error.URLError as e:
+            server_active = False
+
+        return server_active
+
+    def are_enabled_servers_started(self):
+        """
+        Does a JMX request to really determine server is UP and RUNNING
+        :return:
+        """
         CHECKERS = {
             'hdfs': self._is_hdfs_ready
+            # implement here more health checks
         }
 
         enabled_servers = self.settings.get('enabled_servers', [])
@@ -202,6 +209,19 @@ class HadoopServer(object):
             if not availability_checker():
                 return False
 
+        return True
+
+    def are_enabled_servers_listening(self):
+        """
+        Checks wether configured servers are listening in expected ports
+        WARNING: Listening does not mean ready to accept requests
+        :return:
+        """
+        enabled_servers = self.settings.get('enabled_servers', [])
+        for server in enabled_servers:
+            server_port = int(self._find_port(server))
+            if server_port and not self._port_in_use(server_port):
+                return False
         return True
 
     def _find_port(self, server):

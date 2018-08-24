@@ -45,6 +45,9 @@ Also you could modify any of the properties passing a dictionary to:
 hadoop_unit_default_props={'hdfs.test.file': '/tmp/testing', 'maven.local.repo': '/tmp/m2',}
 ```
 
+# Caveats
+It's hard to determine when server is started properly
+
 # Contributing
 Use the GitHub's pull request and issue tracker to provide patches or report problems with the library. All new functionality must be covered by unit tests before it can be included in the repository.
 
