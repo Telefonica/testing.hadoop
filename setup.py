@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 
-install_requires = ['javaproperties']
+install_requires = ['javaproperties', 'six']
 if sys.version_info < (2, 7):
     install_requires.append('unittest2')
 
