@@ -159,7 +159,7 @@ class HadoopServer(object):
                 raise RuntimeError("*** failed to launch %s ***\n" % self.name +
                                    self.read_bootlog())
 
-            if self.is_server_available():
+            if self.has_started():
                 break
 
             if (datetime.now() - exec_at).seconds > boot_timeout:
@@ -173,6 +173,12 @@ class HadoopServer(object):
 
     def get_server_commandline(self, param='console'):
         return [self.hadoop_unit_standalone, param]
+
+    def has_started(self):
+        with open(os.path.join(self.base_dir, '%s.log' % self.name), 'r') as f:
+            if 'HdfsBootstrap is started' in f.read():
+                return True
+        return False
 
     def is_server_available(self):
         available_servers = []
